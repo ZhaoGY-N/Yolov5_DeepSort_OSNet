@@ -40,9 +40,9 @@ ROOT = Path(os.path.relpath(ROOT, Path.cwd()))  # relative
 
 def detect(opt):
     out, source, yolo_model, deep_sort_model, show_vid, save_vid, save_txt, imgsz, evaluate, half, \
-        project, exist_ok, update, save_crop = \
+        project, exist_ok, update, save_crop, show_test = \
         opt.output, opt.source, opt.yolo_model, opt.deep_sort_model, opt.show_vid, opt.save_vid, \
-        opt.save_txt, opt.imgsz, opt.evaluate, opt.half, opt.project, opt.exist_ok, opt.update, opt.save_crop
+        opt.save_txt, opt.imgsz, opt.evaluate, opt.half, opt.project, opt.exist_ok, opt.update, opt.save_crop, opt.show_test
     webcam = source == '0' or source.startswith(
         'rtsp') or source.startswith('http') or source.endswith('.txt')
 
@@ -113,6 +113,7 @@ def detect(opt):
             )
         )
     outputs = [None] * nr_sources
+    outputsTest = [None] * nr_sources
 
     # Get names and colors
     names = model.module.names if hasattr(model, 'module') else model.names
@@ -182,7 +183,7 @@ def detect(opt):
 
                 # pass detections to deepsort
                 t4 = time_sync()
-                outputs[i] = deepsort_list[i].update(xywhs.cpu(), confs.cpu(), clss.cpu(), im0)
+                outputs[i],outputsTest[i] = deepsort_list[i].update(xywhs.cpu(), confs.cpu(), clss.cpu(), im0)
                 t5 = time_sync()
                 dt[3] += t5 - t4
 
@@ -212,6 +213,35 @@ def detect(opt):
                             if save_crop:
                                 txt_file_name = txt_file_name if (isinstance(path, list) and len(path) > 1) else ''
                                 save_one_box(bboxes, imc, file=save_dir / 'crops' / txt_file_name / names[c] / f'{id}' / f'{p.stem}.jpg', BGR=True)
+                
+                # show the unupdated track
+                if show_test:
+                    for j, outputTest in enumerate(outputsTest[i]):
+
+                        bboxes = outputTest[0:4]
+                        id = outputTest[4]
+                        cls = outputTest[5]
+
+                        if save_txt:
+                            # to MOT format
+                            bbox_left = outputTest[0]
+                            bbox_top = outputTest[1]
+                            bbox_w = outputTest[2] - outputTest[0]
+                            bbox_h = outputTest[3] - outputTest[1]
+                            # Write MOT compliant results to file
+                            with open(txt_path + '.txt', 'a') as f:
+                                f.write(('%g ' * 10 + '\n') % (frame_idx + 1, id, bbox_left,  # MOT format
+                                                               bbox_top, bbox_w, bbox_h, -1, -1, -1, i))
+
+                        if save_vid or save_crop or show_vid:  # Add bbox to image
+                            c = int(cls)  # integer class
+                            label = f'{id} {names[c]}'
+                            annotator.box_label(bboxes, label, color=colors(c+1, True))
+                            if save_crop:
+                                txt_file_name = txt_file_name if (isinstance(path, list) and len(path) > 1) else ''
+                                save_one_box(bboxes, imc, file=save_dir / 'crops' / txt_file_name / names[c] / f'{id}' / f'{p.stem}.jpg', BGR=True)
+
+
 
                 LOGGER.info(f'{s}Done. YOLO:({t3 - t2:.3f}s), DeepSort:({t5 - t4:.3f}s)')
 
@@ -281,6 +311,8 @@ if __name__ == '__main__':
     parser.add_argument('--project', default=ROOT / 'runs/track', help='save results to project/name')
     parser.add_argument('--name', default='exp', help='save results to project/name')
     parser.add_argument('--exist-ok', action='store_true', help='existing project/name ok, do not increment')
+    parser.add_argument('--show-test', action='store_true', help='show the unupdated track for test')
+
     opt = parser.parse_args()
     opt.imgsz *= 2 if len(opt.imgsz) == 1 else 1  # expand
 
