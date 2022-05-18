@@ -1,3 +1,4 @@
+from ctypes import sizeof
 import numpy as np
 import torch
 import sys
@@ -71,8 +72,20 @@ class DeepSort(object):
 
         # output bbox identities
         outputs = []
+        outputsTest = []
         for track in self.tracker.tracks:
             if not track.is_confirmed() or track.time_since_update > 1:
+                if track.is_confirmed():
+                    # for test, show the tracks that not updated
+                    if use_yolo_preds:
+                        det = track.get_yolo_pred()
+                        x1, y1, x2, y2 = self._tlwh_to_xyxy(det.tlwh)
+                    else:
+                        box = track.to_tlwh()
+                        x1, y1, x2, y2 = self._tlwh_to_xyxy(box)
+                    track_id = track.track_id
+                    class_id = track.class_id 
+                    outputsTest.append(np.array([x1, y1, x2, y2, track_id, class_id], dtype=np.int))
                 continue
 
             box = track.to_tlwh()
@@ -84,7 +97,10 @@ class DeepSort(object):
             outputs.append(np.array([x1, y1, x2, y2, track_id, class_id, conf]))
         if len(outputs) > 0:
             outputs = np.stack(outputs, axis=0)
-        return outputs
+        if len(outputsTest) > 0:
+            outputsTest = np.stack(outputsTest, axis=0)
+        print(np.shape(outputs),np.shape(outputsTest))
+        return outputs,outputsTest
 
     """
     TODO:
