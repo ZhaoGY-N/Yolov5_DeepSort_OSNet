@@ -77,12 +77,9 @@ class DeepSort(object):
             if not track.is_confirmed() or track.time_since_update > 1:
                 if track.is_confirmed():
                     # for test, show the tracks that not updated
-                    if use_yolo_preds:
-                        det = track.get_yolo_pred()
-                        x1, y1, x2, y2 = self._tlwh_to_xyxy(det.tlwh)
-                    else:
-                        box = track.to_tlwh()
-                        x1, y1, x2, y2 = self._tlwh_to_xyxy(box)
+
+                    box = track.to_tlwh()
+                    x1, y1, x2, y2 = self._tlwh_to_xyxy(box)
                     track_id = track.track_id
                     class_id = track.class_id 
                     outputsTest.append(np.array([x1, y1, x2, y2, track_id, class_id], dtype=np.int))
